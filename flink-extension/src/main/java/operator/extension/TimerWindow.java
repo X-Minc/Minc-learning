@@ -9,6 +9,7 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
+import org.apache.flink.util.Preconditions;
 
 import java.io.Serializable;
 import java.util.*;
@@ -18,7 +19,14 @@ import java.util.*;
  * @DateTime: 2022/7/28
  */
 public class TimerWindow<KEY, IN, OUT> extends KeyedProcessFunction<KEY, IN, OUT> implements ResultTypeQueryable<OUT> {
-
+    private MapState<TimeWindow, List<IN>> rows;
+    private MapState<Long, TimeWindow> mid;
+    private TimerWindowAdaptor<KEY, IN, OUT> timerWindowAdaptor;
+    private ValueState<TimeWindow> drop;
+    private Long windowSize;
+    private Boolean midTrigger;
+    private Long midTriggerInterval;
+    private Long offset;
 
     public static class TimerWindowBuilder<KEY, IN, OUT> {
         private final TimerWindow<KEY, IN, OUT> timerWindow;
@@ -65,14 +73,6 @@ public class TimerWindow<KEY, IN, OUT> extends KeyedProcessFunction<KEY, IN, OUT
         void triggerProcess(KEY key, TimeWindow timeWindow, List<IN> rows, Collector<OUT> out) throws Exception;
     }
 
-    private MapState<TimeWindow, List<IN>> rows;
-    private MapState<TimeWindow, Boolean> drop;
-    private MapState<Long, TimeWindow> mid;
-    private TimerWindowAdaptor<KEY, IN, OUT> timerWindowAdaptor;
-    private Long windowSize;
-    private Boolean midTrigger;
-    private Long midTriggerInterval;
-    private Long offset;
 
     public static <KEY, IN, OUT> TimerWindowBuilder<KEY, IN, OUT> builder() {
         return new TimerWindowBuilder<>(new TimerWindow<>());
@@ -87,12 +87,12 @@ public class TimerWindow<KEY, IN, OUT> extends KeyedProcessFunction<KEY, IN, OUT
             timeWindow = this.mid.get(now);
             this.mid.remove(now);
             long nextTrigger = now + this.midTriggerInterval;
-            if (!Objects.equals(now, timeWindow.getEnd())) {
-                if (nextTrigger <= timeWindow.getEnd()) {
+            if (!Objects.equals(now, timeWindow.maxTimestamp())) {
+                if (nextTrigger <= timeWindow.maxTimestamp()) {
                     ctx.timerService().registerEventTimeTimer(nextTrigger);
                     this.mid.put(nextTrigger, timeWindow);
                 } else {
-                    ctx.timerService().registerEventTimeTimer(timeWindow.getEnd());
+                    ctx.timerService().registerEventTimeTimer(timeWindow.maxTimestamp());
                 }
             } else {
                 finalStep = true;
@@ -105,30 +105,30 @@ public class TimerWindow<KEY, IN, OUT> extends KeyedProcessFunction<KEY, IN, OUT
         this.timerWindowAdaptor.triggerProcess(ctx.getCurrentKey(), timeWindow, rows, out);
         if (finalStep) {
             this.rows.remove(timeWindow);
-            this.drop.put(timeWindow, true);
+            this.drop.update(timeWindow);
         }
     }
 
     @Override
     public void open(Configuration parameters) throws Exception {
+        Preconditions.checkArgument(midTrigger && windowSize / midTriggerInterval != 0, "midTriggerInterval must be a multiple of windowSize !");
         MapStateDescriptor<TimeWindow, List<IN>> rowsMapState = new MapStateDescriptor<>("rows", TypeInformation.of(TimeWindow.class), TypeInformation.of(new TypeHint<List<IN>>() {
         }));
         this.rows = getRuntimeContext().getMapState(rowsMapState);
-        MapStateDescriptor<TimeWindow, Boolean> dropMapState = new MapStateDescriptor<>("drop", TypeInformation.of(TimeWindow.class), BasicTypeInfo.BOOLEAN_TYPE_INFO);
-        this.drop = getRuntimeContext().getMapState(dropMapState);
-
+        ValueStateDescriptor<TimeWindow> dropMapState = new ValueStateDescriptor<>("drop", TypeInformation.of(TimeWindow.class));
+        this.drop = getRuntimeContext().getState(dropMapState);
         MapStateDescriptor<Long, TimeWindow> midMapState = new MapStateDescriptor<>("mid", BasicTypeInfo.LONG_TYPE_INFO, TypeInformation.of(TimeWindow.class));
         this.mid = getRuntimeContext().getMapState(midMapState);
     }
 
     @Override
     public void processElement(IN value, Context ctx, Collector<OUT> out) throws Exception {
-        Iterator<Map.Entry<Long, TimeWindow>> iterator = mid.entries().iterator();
-        Iterator<Map.Entry<TimeWindow, Boolean>> entryIterator = drop.entries().iterator();
-        Iterator<Map.Entry<TimeWindow, List<IN>>> iterator1 = rows.entries().iterator();
         Long now = ctx.timestamp();
         TimeWindow window = getWindow(now, this.offset, this.windowSize);
-        if (Objects.isNull(this.drop.get(window))) {
+        if (Objects.isNull(drop.value())) {
+            drop.update(window);
+        }
+        if (window.maxTimestamp() >= drop.value().maxTimestamp()) {
             List<IN> values = this.rows.get(window);
             if (Objects.isNull(values)) {
                 values = new ArrayList<>();
@@ -137,7 +137,7 @@ public class TimerWindow<KEY, IN, OUT> extends KeyedProcessFunction<KEY, IN, OUT
                     ctx.timerService().registerEventTimeTimer(triggerTime);
                     this.mid.put(triggerTime, window);
                 } else {
-                    ctx.timerService().registerEventTimeTimer(window.getEnd());
+                    ctx.timerService().registerEventTimeTimer(window.maxTimestamp());
                 }
             }
             values.add(value);
@@ -152,11 +152,10 @@ public class TimerWindow<KEY, IN, OUT> extends KeyedProcessFunction<KEY, IN, OUT
 
     private TimeWindow getWindow(long now, long offset, long winSize) throws Exception {
         long startWithOffset = TimeWindow.getWindowStartWithOffset(now, offset, winSize);
-        return new TimeWindow(startWithOffset, startWithOffset + winSize - 1);
+        return new TimeWindow(startWithOffset, startWithOffset + winSize);
     }
 
     private Long getTriggerTime(Long now, Long interval) throws Exception {
         return now / interval * interval - 1;
     }
-
 }

@@ -80,9 +80,9 @@ public class Test {
         TimerWindow<String, TestPojo, TestPojo> build = TimerWindow
                 .<String, TestPojo, TestPojo>builder()
                 .setMidTrigger(true)
-                .setMidTriggerInterval(1000L * 10)
+                .setMidTriggerInterval(1000L * 60)
                 .setOffset(0L)
-                .setWindowSize(1000L * 60)
+                .setWindowSize(1000L * 60 * 5)
                 .setTimerWindowAdaptor(new TimerWindow.TimerWindowAdaptor<String, TestPojo, TestPojo>() {
                     @Override
                     public void triggerProcess(String s, TimeWindow timeWindow, List<TestPojo> rows, Collector<TestPojo> out) throws Exception {
