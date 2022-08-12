@@ -1,4 +1,4 @@
-package operator.extension;
+package org.apache.flink.minc.operator.extension;
 
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;

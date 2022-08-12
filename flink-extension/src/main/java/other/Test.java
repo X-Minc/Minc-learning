@@ -1,6 +1,6 @@
 package other;
 
-import operator.extension.TimerWindow;
+import org.apache.flink.minc.operator.extension.TimerWindow;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
