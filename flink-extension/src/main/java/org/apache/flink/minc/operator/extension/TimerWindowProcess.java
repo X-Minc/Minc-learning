@@ -22,13 +22,93 @@ import java.util.*;
  * @DateTime: 2022/7/28
  */
 public class TimerWindowProcess<KEY, IN, OUT> extends KeyedProcessFunction<KEY, IN, OUT> implements ResultTypeQueryable<OUT> {
-    private MapState<MidTriggerWindow, List<IN>> rows;
+    private MapState<MidTriggerWindow, List<IN>> cache;
     private TimerWindowAdaptor<KEY, IN, OUT> timerWindowAdaptor;
     private ValueState<Long> timeLine;
     private Long windowSize;
     private Long offset = 0L;
-    private Boolean midTrigger = false;
-    private Long midTriggerInterval;
+    private Boolean trigger = false;
+    private Long triggerInterval;
+
+    public interface TimerWindowAdaptor<KEY, IN, OUT> extends Serializable, ResultTypeQueryable<OUT> {
+        void triggerProcess(KEY key, MidTriggerWindow timeWindow, List<IN> rows, Collector<OUT> out) throws Exception;
+    }
+
+    public static <KEY, IN, OUT> TimerWindowBuilder<KEY, IN, OUT> builder() {
+        return new TimerWindowBuilder<>(new TimerWindowProcess<>());
+    }
+
+    @Override
+    public void onTimer(long timestamp, OnTimerContext ctx, Collector<OUT> out) throws Exception {
+        Long now = ctx.timestamp();
+        MidTriggerWindow window = getWindow(now);
+        List<IN> lines = this.cache.get(window);
+        this.timerWindowAdaptor.triggerProcess(ctx.getCurrentKey(), window, lines, out);
+        Long nextTriggerTime = window.getNextTriggerTime(now);
+        if (Objects.nonNull(nextTriggerTime)) {
+            ctx.timerService().registerEventTimeTimer(window.getNextTriggerTime(now));
+        } else {
+            this.cache.remove(window);
+            this.timeLine.update(window.getEnd());
+        }
+    }
+
+    @Override
+    public void open(Configuration parameters) throws Exception {
+        Preconditions.checkArgument(Objects.nonNull(windowSize), "windowSize must not be null !");
+        if (trigger) {
+            Preconditions.checkArgument(Objects.nonNull(triggerInterval), "midTriggerInterval must not be null when midTrigger is true !");
+        }
+        MapStateDescriptor<MidTriggerWindow, List<IN>> rowsMapState = new MapStateDescriptor<>("cache", TypeInformation.of(MidTriggerWindow.class), TypeInformation.of(new TypeHint<List<IN>>() {
+        }));
+        this.cache = getRuntimeContext().getMapState(rowsMapState);
+        ValueStateDescriptor<Long> timeLineMapState = new ValueStateDescriptor<>("tineLine", BasicTypeInfo.LONG_TYPE_INFO);
+        this.timeLine = getRuntimeContext().getState(timeLineMapState);
+    }
+
+    @Override
+    public void processElement(IN value, Context ctx, Collector<OUT> out) throws Exception {
+        Long now = ctx.timestamp();
+        //获得当前事件时间所属于的窗口
+        MidTriggerWindow window = getWindow(now);
+        //初始化时间线
+        if (Objects.isNull(timeLine.value())) {
+            timeLine.update(window.getStart());
+        }
+        //过滤小于初始时间线的数据
+        if (now >= timeLine.value()) {
+            List<IN> values = this.cache.get(window);
+            if (Objects.isNull(values)) {
+                values = new ArrayList<>();
+                //根据是否中途触发编列不同逻辑
+                if (this.trigger) {
+                    //获得下次触发时间
+                    Long nextTriggerTime = window.getNextTriggerTime(now);
+                    if (Objects.nonNull(nextTriggerTime)) {
+                        ctx.timerService().registerEventTimeTimer(nextTriggerTime);
+                    }
+                } else {
+                    ctx.timerService().registerEventTimeTimer(window.maxTimestamp());
+                }
+            }
+            values.add(value);
+            this.cache.put(window, values);
+        }
+    }
+
+    @Override
+    public TypeInformation<OUT> getProducedType() {
+        return timerWindowAdaptor.getProducedType();
+    }
+
+    private MidTriggerWindow getWindow(long now) throws Exception {
+        long startWithOffset = MidTriggerWindow.getWindowStartWithOffset(now, offset, this.windowSize);
+        if (trigger) {
+            return new MidTriggerWindow(startWithOffset, startWithOffset + this.windowSize, triggerInterval);
+        } else {
+            return new MidTriggerWindow(startWithOffset, startWithOffset + this.windowSize);
+        }
+    }
 
     public static class MidTriggerWindow extends TimeWindow {
         protected Long triggerFrequency;
@@ -78,14 +158,14 @@ public class TimerWindowProcess<KEY, IN, OUT> extends KeyedProcessFunction<KEY, 
 
         }
 
-        public TimerWindowBuilder<KEY, IN, OUT> setMidTrigger(Boolean midTrigger) {
-            this.timerWindowProcess.midTrigger = midTrigger;
+        public TimerWindowBuilder<KEY, IN, OUT> setTrigger(Boolean midTrigger) {
+            this.timerWindowProcess.trigger = midTrigger;
             return this;
 
         }
 
-        public TimerWindowBuilder<KEY, IN, OUT> setMidTriggerInterval(Long midTriggerInterval) {
-            this.timerWindowProcess.midTriggerInterval = midTriggerInterval;
+        public TimerWindowBuilder<KEY, IN, OUT> setTriggerInterval(Long midTriggerInterval) {
+            this.timerWindowProcess.triggerInterval = midTriggerInterval;
             return this;
 
         }
@@ -104,86 +184,5 @@ public class TimerWindowProcess<KEY, IN, OUT> extends KeyedProcessFunction<KEY, 
             return timerWindowProcess;
         }
 
-    }
-
-    public interface TimerWindowAdaptor<KEY, IN, OUT> extends Serializable, ResultTypeQueryable<OUT> {
-        void triggerProcess(KEY key, MidTriggerWindow timeWindow, List<IN> rows, Collector<OUT> out) throws Exception;
-    }
-
-
-    public static <KEY, IN, OUT> TimerWindowBuilder<KEY, IN, OUT> builder() {
-        return new TimerWindowBuilder<>(new TimerWindowProcess<>());
-    }
-
-    @Override
-    public void onTimer(long timestamp, OnTimerContext ctx, Collector<OUT> out) throws Exception {
-        Long now = ctx.timestamp();
-        MidTriggerWindow window = getWindow(now);
-        List<IN> lines = this.rows.get(window);
-        this.timerWindowAdaptor.triggerProcess(ctx.getCurrentKey(), window, lines, out);
-        Long nextTriggerTime = window.getNextTriggerTime(now);
-        if (Objects.nonNull(nextTriggerTime)) {
-            ctx.timerService().registerEventTimeTimer(window.getNextTriggerTime(now));
-        } else {
-            this.rows.remove(window);
-            this.timeLine.update(window.getEnd());
-        }
-    }
-
-    @Override
-    public void open(Configuration parameters) throws Exception {
-        Preconditions.checkArgument(Objects.nonNull(windowSize), "windowSize must not be null !");
-        if (midTrigger) {
-            Preconditions.checkArgument(Objects.nonNull(midTriggerInterval), "midTriggerInterval must not be null when midTrigger is true !");
-        }
-        MapStateDescriptor<MidTriggerWindow, List<IN>> rowsMapState = new MapStateDescriptor<>("rows", TypeInformation.of(MidTriggerWindow.class), TypeInformation.of(new TypeHint<List<IN>>() {
-        }));
-        this.rows = getRuntimeContext().getMapState(rowsMapState);
-        ValueStateDescriptor<Long> timeLineMapState = new ValueStateDescriptor<>("tineLine", BasicTypeInfo.LONG_TYPE_INFO);
-        this.timeLine = getRuntimeContext().getState(timeLineMapState);
-    }
-
-    @Override
-    public void processElement(IN value, Context ctx, Collector<OUT> out) throws Exception {
-        Long now = ctx.timestamp();
-        //获得当前事件时间所属于的窗口
-        MidTriggerWindow window = getWindow(now);
-        //初始化时间线
-        if (Objects.isNull(timeLine.value())) {
-            timeLine.update(window.getStart());
-        }
-        //过滤小于初始时间线的数据
-        if (now >= timeLine.value()) {
-            List<IN> values = this.rows.get(window);
-            if (Objects.isNull(values)) {
-                values = new ArrayList<>();
-                //根据是否中途触发编列不同逻辑
-                if (this.midTrigger) {
-                    //获得下次触发时间
-                    Long nextTriggerTime = window.getNextTriggerTime(now);
-                    if (Objects.nonNull(nextTriggerTime)) {
-                        ctx.timerService().registerEventTimeTimer(nextTriggerTime);
-                    }
-                } else {
-                    ctx.timerService().registerEventTimeTimer(window.maxTimestamp());
-                }
-            }
-            values.add(value);
-            this.rows.put(window, values);
-        }
-    }
-
-    @Override
-    public TypeInformation<OUT> getProducedType() {
-        return timerWindowAdaptor.getProducedType();
-    }
-
-    private MidTriggerWindow getWindow(long now) throws Exception {
-        long startWithOffset = MidTriggerWindow.getWindowStartWithOffset(now, offset, this.windowSize);
-        if (midTrigger) {
-            return new MidTriggerWindow(startWithOffset, startWithOffset + this.windowSize, midTriggerInterval);
-        } else {
-            return new MidTriggerWindow(startWithOffset, startWithOffset + this.windowSize);
-        }
     }
 }

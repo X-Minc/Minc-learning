@@ -21,8 +21,8 @@ public class Test {
     public static void main(String[] args) throws Exception {
         TimerWindowProcess<String, TestPojo, TestPojo> build = TimerWindowProcess
                 .<String, TestPojo, TestPojo>builder()
-                .setMidTrigger(true)
-                .setMidTriggerInterval(1000L * 60)
+                .setTrigger(true)
+                .setTriggerInterval(1000L * 60)
                 .setOffset(0L)
                 .setWindowSize(1000L * 60 * 5)
                 .setTimerWindowAdaptor(new TimerWindowProcess.TimerWindowAdaptor<String, TestPojo, TestPojo>() {
