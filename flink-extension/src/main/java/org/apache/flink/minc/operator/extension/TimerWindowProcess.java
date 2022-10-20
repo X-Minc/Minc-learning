@@ -110,6 +110,9 @@ public class TimerWindowProcess<KEY, IN, OUT> extends KeyedProcessFunction<KEY, 
         }
     }
 
+    /**
+     * MidTriggerWindow
+     */
     public static class MidTriggerWindow extends TimeWindow {
         protected Long triggerFrequency;
 
@@ -145,6 +148,9 @@ public class TimerWindowProcess<KEY, IN, OUT> extends KeyedProcessFunction<KEY, 
         }
     }
 
+    /**
+     * builder
+     */
     public static class TimerWindowBuilder<KEY, IN, OUT> {
         private final TimerWindowProcess<KEY, IN, OUT> timerWindowProcess;
 

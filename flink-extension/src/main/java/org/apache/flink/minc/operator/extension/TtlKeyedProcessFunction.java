@@ -19,38 +19,8 @@ public class TtlKeyedProcessFunction<KEY, IN, OUT> extends KeyedProcessFunction<
     protected ValueState<Long> time;
     protected ValueState<Boolean> drop;
 
-    private static class TtlKeyedProcessFunctionBuilder<KEY, IN, OUT> {
-        private final TtlKeyedProcessFunction<KEY, IN, OUT> ttlKeyedProcessFunction;
-
-        private TtlKeyedProcessFunctionBuilder(TtlKeyedProcessFunction<KEY, IN, OUT> ttlKeyedProcessFunction) {
-            this.ttlKeyedProcessFunction = ttlKeyedProcessFunction;
-        }
-
-        public TtlKeyedProcessFunctionBuilder<KEY, IN, OUT> setTime(ValueState<Long> time) {
-            this.ttlKeyedProcessFunction.time = time;
-            return this;
-        }
-
-        public TtlKeyedProcessFunctionBuilder<KEY, IN, OUT> setTtlKeyedProcessFunctionAdaptor(TtlKeyedProcessFunctionAdaptor<KEY, IN, OUT> ttlKeyedProcessFunctionAdaptor) {
-            this.ttlKeyedProcessFunction.ttlKeyedProcessFunctionAdaptor = ttlKeyedProcessFunctionAdaptor;
-            return this;
-        }
-
-        public TtlKeyedProcessFunction<KEY, IN, OUT> build() {
-            return ttlKeyedProcessFunction;
-        }
-    }
-
-    public interface TtlKeyedProcessFunctionAdaptor<KEY, IN, OUT> {
-        void onTimerProcess(long timestamp, KeyedProcessFunction<KEY, IN, OUT>.OnTimerContext ctx, Collector<OUT> out) throws Exception;
-
-        void openProcess(Configuration parameters) throws Exception;
-
-        void process(IN value, KeyedProcessFunction<KEY, IN, OUT>.Context ctx, Collector<OUT> out) throws Exception;
-    }
-
     public static <KEY, IN, OUT> TtlKeyedProcessFunctionBuilder<KEY, IN, OUT> builder() {
-        return new TtlKeyedProcessFunctionBuilder<>(new TtlKeyedProcessFunction<KEY, IN, OUT>());
+        return new TtlKeyedProcessFunctionBuilder<>(new TtlKeyedProcessFunction<>());
     }
 
     @Override
@@ -79,6 +49,42 @@ public class TtlKeyedProcessFunction<KEY, IN, OUT> extends KeyedProcessFunction<
             time.update(next);
             ctx.timerService().registerEventTimeTimer(next);
             ttlKeyedProcessFunctionAdaptor.process(value, ctx, out);
+        }
+    }
+
+    /**
+     * TtlKeyedProcessFunctionAdaptor
+     */
+    public interface TtlKeyedProcessFunctionAdaptor<KEY, IN, OUT> {
+        void onTimerProcess(long timestamp, KeyedProcessFunction<KEY, IN, OUT>.OnTimerContext ctx, Collector<OUT> out) throws Exception;
+
+        void openProcess(Configuration parameters) throws Exception;
+
+        void process(IN value, KeyedProcessFunction<KEY, IN, OUT>.Context ctx, Collector<OUT> out) throws Exception;
+    }
+
+    /**
+     * builder
+     */
+    private static class TtlKeyedProcessFunctionBuilder<KEY, IN, OUT> {
+        private final TtlKeyedProcessFunction<KEY, IN, OUT> ttlKeyedProcessFunction;
+
+        private TtlKeyedProcessFunctionBuilder(TtlKeyedProcessFunction<KEY, IN, OUT> ttlKeyedProcessFunction) {
+            this.ttlKeyedProcessFunction = ttlKeyedProcessFunction;
+        }
+
+        public TtlKeyedProcessFunctionBuilder<KEY, IN, OUT> setTime(ValueState<Long> time) {
+            this.ttlKeyedProcessFunction.time = time;
+            return this;
+        }
+
+        public TtlKeyedProcessFunctionBuilder<KEY, IN, OUT> setTtlKeyedProcessFunctionAdaptor(TtlKeyedProcessFunctionAdaptor<KEY, IN, OUT> ttlKeyedProcessFunctionAdaptor) {
+            this.ttlKeyedProcessFunction.ttlKeyedProcessFunctionAdaptor = ttlKeyedProcessFunctionAdaptor;
+            return this;
+        }
+
+        public TtlKeyedProcessFunction<KEY, IN, OUT> build() {
+            return ttlKeyedProcessFunction;
         }
     }
 }
