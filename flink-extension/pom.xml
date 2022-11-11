@@ -24,6 +24,12 @@
             <scope>provided</scope>
         </dependency>
 
+        <dependency>
+            <groupId>ru.yandex.clickhouse</groupId>
+            <artifactId>clickhouse-jdbc</artifactId>
+            <version>0.2.4</version>
+        </dependency>
+
         <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-table -->
         <dependency>
             <groupId>org.apache.flink</groupId>

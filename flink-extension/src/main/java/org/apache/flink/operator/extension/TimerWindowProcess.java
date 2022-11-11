@@ -1,4 +1,4 @@
-package org.apache.flink.minc.operator.extension;
+package org.apache.flink.operator.extension;
 
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
