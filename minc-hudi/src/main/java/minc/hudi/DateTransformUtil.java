@@ -1,4 +1,4 @@
-package minc.util;
+package minc.hudi;
 
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 

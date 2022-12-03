@@ -1,10 +1,8 @@
-package minc.util;
+package minc.hudi;
 
 import org.apache.flink.table.functions.ScalarFunction;
 
-import java.net.URL;
 import java.time.Duration;
-import java.util.Objects;
 
 /**
  * @Author: Minc

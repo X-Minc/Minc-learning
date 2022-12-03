@@ -1,4 +1,4 @@
-package minc.hudi;
+package minc.hudi.read.hudi;
 
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -28,7 +28,7 @@ public class HudiSqlRead {
                 " 'connector'='hudi',\n" +
                 " 'read.tasks'='1',\n" +
                 " 'table.type' = 'MERGE_ON_READ',\n" +
-                " 'path'='oss://hudi-minc/link_nodes_hudi'\n" +
+                " 'path'='oss://hudi-minc/link'\n" +
                 ")");
         tableEnvironment.executeSql("select * from link_nodes_hudi").print();
         env.execute();
