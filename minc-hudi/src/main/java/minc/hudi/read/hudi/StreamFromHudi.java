@@ -1,7 +1,9 @@
 package minc.hudi.read.hudi;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import minc.hudi.AvroUtil;
 import org.apache.avro.Schema;
@@ -10,6 +12,7 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hudi.client.common.HoodieFlinkEngineContext;
 import org.apache.hudi.common.engine.EngineType;
+import org.apache.hudi.common.model.HoodieBaseFile;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.configuration.FlinkOptions;
@@ -39,7 +42,7 @@ public class StreamFromHudi {
       String name = readPath.getName();
       table.getFileSystemView()
           .getAllFileGroups(name).forEach(baseFile -> {
-//            List<HoodieBaseFile> collect = baseFile.getAllBaseFiles().collect(Collectors.toList());
+                List<HoodieBaseFile> collect = baseFile.getAllBaseFiles().collect(Collectors.toList());
             baseFile.getAllBaseFiles().forEach(x -> {
               Path path = new Path(x.getPath());
               try {
@@ -49,10 +52,8 @@ public class StreamFromHudi {
                 GenericRecord nextRecord = reader.read();
                 while (nextRecord != null) {
                   nextRecord = reader.read();
-                  if (Objects.nonNull(nextRecord) &&
-                      "3e7e6187-8dfb-465e-b221-98387e9aca9a".equals(nextRecord.get(7).toString())) {
+                  if (Objects.nonNull(nextRecord))
                     System.out.println(nextRecord);
-                  }
                 }
               } catch (Exception e) {
                 e.printStackTrace();
