@@ -6,6 +6,7 @@ import java.lang.reflect.Proxy;
 import java.text.SimpleDateFormat;
 
 /**
+ * 动态代理，用代理类控制原始接口或者类的行为
  * @Author: Minc
  * @DateTime: 2022.12.14 0014
  */
@@ -14,15 +15,15 @@ public class DynamicProxy {
         People coder = new Coder("Minc");
         InvocationHandler coderInvoker = new CoderInvoker(coder);
         People people = (People) Proxy.newProxyInstance(coder.getClass().getClassLoader(), coder.getClass().getInterfaces(), coderInvoker);
-        people.eat();
-        people.sleep();
+        System.out.println(people.eat());
+        System.out.println(people.sleep());
     }
 }
 
 interface People {
-    void sleep();
+    State sleep();
 
-    void eat();
+    State eat();
 }
 
 class Coder implements People {
@@ -33,14 +34,22 @@ class Coder implements People {
     }
 
     @Override
-    public void sleep() {
+    public State sleep() {
         System.out.println("people who name " + name + " and work as coder will sleeping");
+        return State.FINISH;
     }
 
     @Override
-    public void eat() {
+    public State eat() {
         System.out.println("people who name " + name + " and work as coder will eating");
+        return State.FINISH;
     }
+}
+
+enum State {
+    FINISH,
+    READY,
+    WILL
 }
 
 class CoderInvoker implements InvocationHandler {
