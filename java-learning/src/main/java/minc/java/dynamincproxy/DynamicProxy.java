@@ -1,4 +1,4 @@
-package minc.java;
+package minc.java.dynamincproxy;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -13,7 +13,7 @@ import java.text.SimpleDateFormat;
 public class DynamicProxy {
     public static void main(String[] args) {
         People coder = new Coder("Minc");
-        InvocationHandler coderInvoker = new CoderInvoker(coder);
+        InvocationHandler    coderInvoker = new CoderInvoker(coder);
         People people = (People) Proxy.newProxyInstance(coder.getClass().getClassLoader(), coder.getClass().getInterfaces(), coderInvoker);
         System.out.println(people.eat());
         System.out.println(people.sleep());
