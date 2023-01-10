@@ -57,7 +57,7 @@ public class JdbcSink<T> extends RichSinkFunction<T> implements Serializable, Ch
         Preconditions.checkNotNull(sql, "Sql must not be null!");
         Preconditions.checkNotNull(jdbcSinkAdapter, "ValueGetter must not be null!");
         Preconditions.checkNotNull(properties, "Druid properties must not be null!");
-        InTps = MetricsUtil.registerInTPSMeter(MetricsUtil.MetricsGroup.sink, getRuntimeContext());
+        InTps = MetricsUtil.registerInflowMeter(MetricsUtil.MetricsGroup.sink, MetricsUtil.OperateMetricsType.ROW_INFLOW_PER_SECOND,getRuntimeContext());
         LOGGER.info("operateName {},database {},sql {},slot {}", operateName, database, sql, slotIndex);
         Properties druidPro = getDruidPro(properties);
         druidDataSource = (DruidDataSource) DruidDataSourceFactory.createDataSource(druidPro);

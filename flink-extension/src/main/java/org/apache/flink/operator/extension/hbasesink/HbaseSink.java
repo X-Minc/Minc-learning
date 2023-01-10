@@ -40,7 +40,7 @@ public class HbaseSink<IN> extends RichSinkFunction<IN> implements Serializable,
 
     @Override
     public void open(Configuration parameters) throws Exception {
-        InTps = MetricsUtil.registerInTPSMeter(MetricsUtil.MetricsGroup.sink, getRuntimeContext());
+        InTps = MetricsUtil.registerInflowMeter(MetricsUtil.MetricsGroup.sink,MetricsUtil.OperateMetricsType.ROW_INFLOW_PER_SECOND, getRuntimeContext());
         org.apache.hadoop.conf.Configuration configuration = getConfiguration(conf);
         if (!HbaseClient.checkCreated()) {
             HbaseClient.create(configuration);
